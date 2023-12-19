@@ -1,0 +1,86 @@
+import express from "express";
+import { createServer } from "http";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+import cors from "cors";
+import { Server } from "socket.io";
+import mongoose from "mongoose";
+import exp from "constants";
+
+const app = express();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+app.use(cors());
+const distPath = join(__dirname, "..", "pike-web", "dist");
+app.use(express.static(distPath));
+app.get("*", (req, res) => {
+  res.sendFile(join(distPath, "index.html"));
+});
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  },
+});
+// mongodb
+const DB = "mongodb://localhost:27017/maple";
+mongoose
+  .connect(DB, {
+    useNewUrlParser: true,
+    useCreateIndex: true,
+    useFindAndModify: false,
+  })
+  .then((con) => {
+    console.log("connect db successful");
+  });
+const messageSchema = mongoose.Schema({
+  user: {
+    type: String,
+    required: [true, "user must!!!"],
+  },
+  text: {
+    type: String,
+    required: [true, "text must!!!"],
+  },
+  date: {
+    type: String,
+    required: [true, "date must!!!"],
+  },
+});
+
+// server
+io.on("connection", (socket) => {
+  const user = socket.handshake.query.user;
+  const room = socket.handshake.query.room;
+  console.log(`${user} connected`);
+  socket.on("disconnect", () => {
+    console.log(`${user} disconnected`);
+  });
+  socket.join(room);
+  // 添加消息
+  const setMessage = (message) => {
+    const newMessage = new roomMessage(message);
+    newMessage
+      .save()
+      .then((doc) => {
+        console.log(doc);
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  };
+
+  const roomMessage = mongoose.model(room, messageSchema);
+  let initMessage = [];
+  roomMessage.find().then((msgs) => {
+    initMessage = msgs;
+    socket.emit("init", initMessage);
+  });
+  socket.on("chat", (room, message) => {
+    setMessage(message);
+    io.to(room).emit("chat", message);
+  });
+});
+
+server.listen(3000, () => {
+  console.log("server running at http://localhost:3000");
+});
