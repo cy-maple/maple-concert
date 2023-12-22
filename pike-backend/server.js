@@ -5,7 +5,6 @@ import { dirname, join } from "path";
 import cors from "cors";
 import { Server } from "socket.io";
 import mongoose from "mongoose";
-import exp from "constants";
 
 const app = express();
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -37,9 +36,15 @@ const messageSchema = mongoose.Schema({
     type: String,
     required: [true, "user must!!!"],
   },
+  type: {
+    type: String,
+    required: [true, "type must!!!"],
+  },
   text: {
     type: String,
-    required: [true, "text must!!!"],
+  },
+  record: {
+    type: Buffer,
   },
   date: {
     type: String,
@@ -51,9 +56,9 @@ const messageSchema = mongoose.Schema({
 io.on("connection", (socket) => {
   const user = socket.handshake.query.user;
   const room = socket.handshake.query.room;
-  console.log(`${user} connected`);
+  console.log(`${user} enter ${room}`);
   socket.on("disconnect", () => {
-    console.log(`${user} disconnected`);
+    console.log(`${user} leave ${room}`);
   });
   socket.join(room);
   // 添加消息

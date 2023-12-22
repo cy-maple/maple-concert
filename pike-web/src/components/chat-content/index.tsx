@@ -4,8 +4,10 @@ import ChatBubble from "../chat-bubble";
 import ColorHash from "color-hash";
 interface ChatData {
   user: string;
-  text: string;
+  text?: string;
+  record?: Blob;
   date: string;
+  type: string;
 }
 
 function ChatContent({
@@ -33,7 +35,9 @@ function ChatContent({
                 {item.user}
               </Avatar>
               <ChatBubble
+                type={item.type}
                 text={item.text}
+                record={item.record}
                 isUser={item.user === user}
                 date={item.date}
               />
@@ -53,7 +57,9 @@ function ChatContent({
                 {item.user}
               </Avatar>
               <ChatBubble
+                type={item.type}
                 text={item.text}
+                record={item.record}
                 isUser={item.user === user}
                 date={item.date}
               />
