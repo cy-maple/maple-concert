@@ -164,29 +164,29 @@ function Home() {
   // 在线视频
   useEffect(() => {
     const localVideo = document.querySelector("#localVideo");
-    const remoteVideo = document.querySelector("#remoteVideo");
+    // const remoteVideo = document.querySelector("#remoteVideo");
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
       .then((stream) => {
         localVideo.srcObject = stream;
-        socket.emit("online-video", room, user);
-        socket.on("online-video", (user) => {
-          const peerConnection = new RTCPeerConnection();
-          peerConnections[user] = peerConnection;
+        // socket.emit("online-video", room, user);
+        // socket.on("online-video", (user) => {
+        //   const peerConnection = new RTCPeerConnection();
+        //   peerConnections[user] = peerConnection;
 
-          stream
-            .getTracks()
-            .forEach((track) => peerConnection.addTrack(track, stream));
-          peerConnection
-            .createOffer()
-            .then((sdp) => peerConnection.setLocalDescription(sdp))
-            .then(() => {
-              socket.emit("offer", peerConnection.localDescription, user);
-            });
-          peerConnection.ontrack = (event) => {
-            remoteVideo.srcObject = event.stream[0];
-          };
-        });
+        //   stream
+        //     .getTracks()
+        //     .forEach((track) => peerConnection.addTrack(track, stream));
+        //   peerConnection
+        //     .createOffer()
+        //     .then((sdp) => peerConnection.setLocalDescription(sdp))
+        //     .then(() => {
+        //       socket.emit("offer", peerConnection.localDescription, user);
+        //     });
+        //   peerConnection.ontrack = (event) => {
+        //     remoteVideo.srcObject = event.stream[0];
+        //   };
+        // });
       });
   }, []);
   return (

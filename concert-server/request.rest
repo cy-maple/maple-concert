@@ -1,4 +1,0 @@
-post http://localhost:6666/login
-Content-type: application/json
-
-{ "username": "maple" }

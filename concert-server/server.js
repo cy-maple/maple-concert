@@ -2,10 +2,11 @@ import express from "express";
 import { createServer } from "http";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import dotenv from "dotenv";
 import cors from "cors";
 import { Server } from "socket.io";
 import mongoose from "mongoose";
-
+dotenv.config();
 const app = express();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use(cors());
@@ -21,7 +22,7 @@ const io = new Server(server, {
   },
 });
 // mongodb
-const DB = "mongodb://localhost:27017/maple";
+const DB = process.env.DATABASE_LOCAL;
 mongoose
   .connect(DB, {
     useNewUrlParser: true,
@@ -86,9 +87,9 @@ io.on("connection", (socket) => {
     }
     io.to(room).emit("chat", message);
   });
-  socket.on("online-video", (room, user) => {
-    socket.broadcast.to(room).emit("online-video", user);
-  });
+  // socket.on("online-video", (room, user) => {
+  //   socket.broadcast.to(room).emit("online-video", user);
+  // });
 });
 
 server.listen(3000, () => {
