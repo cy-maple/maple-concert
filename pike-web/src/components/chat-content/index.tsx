@@ -1,7 +1,7 @@
 import "./index.less";
 import { Avatar } from "antd";
 import ChatBubble from "../chat-bubble";
-import ColorHash from "color-hash";
+import ColorHash from "@/utils/color-hash";
 interface ChatData {
   user: string;
   text?: string;

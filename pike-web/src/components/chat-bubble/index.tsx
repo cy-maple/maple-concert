@@ -8,7 +8,9 @@ function ChatBubble({
   isUser,
   date,
 }: {
-  text: string;
+  type: string;
+  text?: string;
+  record?: Blob;
   isUser: boolean;
   date: string;
 }) {

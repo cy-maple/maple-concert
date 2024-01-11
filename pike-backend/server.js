@@ -80,9 +80,14 @@ io.on("connection", (socket) => {
     initMessage = msgs;
     socket.emit("init", initMessage);
   });
-  socket.on("chat", (room, message) => {
-    setMessage(message);
+  socket.on("chat", (room, message, isStorage = true) => {
+    if (isStorage) {
+      setMessage(message);
+    }
     io.to(room).emit("chat", message);
+  });
+  socket.on("online-video", (room, user) => {
+    socket.broadcast.to(room).emit("online-video", user);
   });
 });
 

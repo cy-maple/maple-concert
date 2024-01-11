@@ -50,9 +50,30 @@
     }
   }
   .setting-area {
-    height: calc(100vh - 60px);
-    width: calc(25vw - 30px);
+    height: calc(100vh - 90px);
+    width: calc(25vw - 60px);
     border-radius: 5px;
     background-color: #fff;
+    padding: 15px;
+    &-title {
+      height: 80px;
+      line-height: 60px;
+      margin-left: 10px;
+      font-size: 20px;
+    }
+    .setting-area-opts {
+      &-row {
+        display: flex;
+        justify-content: center;
+      }
+    }
+    .setting-area-opt {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+    }
+  }
+  video {
+    width: 100%;
   }
 }

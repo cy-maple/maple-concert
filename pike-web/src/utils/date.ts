@@ -1,17 +1,20 @@
+const addZero = (value) => {
+  return value < 10 ? "0" + value : value;
+};
 const getDate = () => {
   const date = new Date();
   return (
     date.getFullYear() +
     "-" +
-    (date.getMonth() + 1) +
+    addZero(date.getMonth() + 1) +
     "-" +
-    date.getDate() +
+    addZero(date.getDate()) +
     " " +
-    date.getHours() +
+    addZero(date.getHours()) +
     ":" +
-    date.getMinutes() +
+    addZero(date.getMinutes()) +
     ":" +
-    date.getSeconds()
+    addZero(date.getSeconds())
   );
 };
 

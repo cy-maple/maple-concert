@@ -5,13 +5,15 @@ import {
   HistoryOutlined,
   AudioFilled,
 } from "@ant-design/icons";
-import getDate from "../../utils/date";
+import getDate from "@/utils/date";
 import { io } from "socket.io-client";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import ChatContent, { ChatData } from "../../components/chat-content";
+import ChatContent, { ChatData } from "@/components/chat-content";
+import SettingBox from "@/components/setting-box";
+import SettingButton from "@/components/setting-button";
 import { Avatar, Button } from "antd";
-import ColorHash from "color-hash";
+import ColorHash from "@/utils/color-hash";
 import RecordRTC from "recordrtc";
 let socket = null;
 function Home() {
@@ -34,12 +36,17 @@ function Home() {
   };
   // 语音事件
   const [recorder, setRecorder] = useState(null);
-  const [audioUrl, setAudioUrl] = useState("");
+  // const [audioUrl, setAudioUrl] = useState("");
   const [isrecording, setIsRecording] = useState(false);
   const startRecording = async () => {
     console.log("start record");
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recordRTC = new RecordRTC(stream, { type: "audio" });
+    const recordRTC = new RecordRTC(stream, {
+      type: "audio",
+      mimeType: "audio/webm; codecs=opus",
+      bitsPerSecend: 12000,
+      sampleRate: 8000,
+    });
     recordRTC.startRecording();
     setRecorder(recordRTC);
     setIsRecording(true);
@@ -48,16 +55,40 @@ function Home() {
     recorder.stopRecording(() => {
       console.log("stop record");
       const audioBlob = recorder.getBlob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      setAudioUrl(audioUrl);
+      // const audioUrl = URL.createObjectURL(audioBlob);
+      // setAudioUrl(audioUrl);
       setIsRecording(false);
       pushRecord(audioBlob);
-      console.log(audioBlob);
     });
+  };
+  // 消息清空
+  const deleteMessage = () => {
+    input.current.value = "";
+  };
+  const [pusher, setPusher] = useState(null);
+  // 定时发送
+  const pushiIterval = () => {
+    if (pusher) {
+      clearInterval(pusher);
+      setPusher(null);
+      return;
+    }
+    let msg = 0;
+    setPusher(
+      setInterval(() => {
+        msg++;
+        const message: ChatData = {
+          user: user,
+          type: "text",
+          text: String(msg),
+          date: getDate(),
+        };
+        socket.emit("chat", room, message, false);
+      }, 1000)
+    );
   };
   // 语音发送
   const pushRecord = (rcd) => {
-    console.log("push rcd");
     const record: ChatData = {
       user: user,
       type: "record",
@@ -66,6 +97,37 @@ function Home() {
       date: getDate(),
     };
     socket.emit("chat", room, record);
+  };
+  // 消息发送
+  const pushMessage = () => {
+    if (input.current.value === "") {
+      return;
+    }
+    const message: ChatData = {
+      user: user,
+      type: "text",
+      text: input.current.value,
+      date: getDate(),
+    };
+    deleteMessage();
+    socket.emit("chat", room, message);
+  };
+  // 消息批量发送
+  const batchPushMessage = (num) => {
+    let count = 1;
+    const batchPushInterval = setInterval(() => {
+      const message: ChatData = {
+        user: user,
+        type: "text",
+        text: String(count),
+        date: getDate(),
+      };
+      socket.emit("chat", room, message, false);
+      count++;
+      if (count > num) {
+        clearInterval(batchPushInterval);
+      }
+    }, 0);
   };
   useEffect(() => {
     // 连接socket
@@ -98,24 +160,35 @@ function Home() {
   useEffect(() => {
     scrollToBottom();
   }, [chatData]);
-  // 消息发送
-  const pushMessage = () => {
-    if (input.current.value === "") {
-      return;
-    }
-    const message: ChatData = {
-      user: user,
-      type: "text",
-      text: input.current.value,
-      date: getDate(),
-    };
-    deleteMessage();
-    socket.emit("chat", room, message);
-  };
-  // 消息清空
-  const deleteMessage = () => {
-    input.current.value = "";
-  };
+  const peerConnections = {};
+  // 在线视频
+  useEffect(() => {
+    const localVideo = document.querySelector("#localVideo");
+    const remoteVideo = document.querySelector("#remoteVideo");
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: true })
+      .then((stream) => {
+        localVideo.srcObject = stream;
+        socket.emit("online-video", room, user);
+        socket.on("online-video", (user) => {
+          const peerConnection = new RTCPeerConnection();
+          peerConnections[user] = peerConnection;
+
+          stream
+            .getTracks()
+            .forEach((track) => peerConnection.addTrack(track, stream));
+          peerConnection
+            .createOffer()
+            .then((sdp) => peerConnection.setLocalDescription(sdp))
+            .then(() => {
+              socket.emit("offer", peerConnection.localDescription, user);
+            });
+          peerConnection.ontrack = (event) => {
+            remoteVideo.srcObject = event.stream[0];
+          };
+        });
+      });
+  }, []);
   return (
     <div className="home-page">
       <div className="chat-area">
@@ -149,6 +222,7 @@ function Home() {
               icon={<DeleteOutlined style={{ color: "#000" }} />}
             ></Button>
             <Button
+              onClick={pushiIterval}
               shape="circle"
               size="middle"
               style={{ backgroundColor: "#ddd", marginLeft: "8px" }}
@@ -171,7 +245,37 @@ function Home() {
           </div>
         </div>
       </div>
-      <div className="setting-area"></div>
+      <div className="setting-area">
+        <div className="setting-area-title">测试操作</div>
+        <SettingBox color="#f0feed" title="房间消息发送">
+          <div className="setting-area-opts">
+            <div className="setting-area-opts-row">
+              <div className="setting-area-opt">
+                <SettingButton
+                  onClick={() => batchPushMessage(10)}
+                  text="批量10条"
+                />
+              </div>
+              <div className="setting-area-opt">
+                <SettingButton
+                  onClick={() => batchPushMessage(100)}
+                  text="批量100条"
+                />
+              </div>
+              <div className="setting-area-opt">
+                <SettingButton
+                  onClick={() => batchPushMessage(1000)}
+                  text="1000条"
+                />
+              </div>
+            </div>
+          </div>
+        </SettingBox>
+        <SettingBox color="#f0feed" title="房间消息发送">
+          <video autoPlay muted id="localVideo"></video>
+          <video autoPlay muted id="remoteVideo"></video>
+        </SettingBox>
+      </div>
     </div>
   );
 }
