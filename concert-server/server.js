@@ -10,7 +10,7 @@ dotenv.config();
 const app = express();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use(cors());
-const distPath = join(__dirname, "..", "pike-web", "dist");
+const distPath = join(__dirname, "..", "concert-web", "dist");
 app.use(express.static(distPath));
 app.get("*", (req, res) => {
   res.sendFile(join(distPath, "index.html"));
