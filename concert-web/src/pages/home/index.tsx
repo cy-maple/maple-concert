@@ -131,7 +131,7 @@ function Home() {
   };
   useEffect(() => {
     // 连接socket
-    socket = io("http://123.56.215.24:3000", {
+    socket = io("https://www.cymaple.cn", {
       query: {
         room: room,
         user: user,
