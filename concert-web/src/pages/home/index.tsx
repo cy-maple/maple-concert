@@ -6,6 +6,7 @@ import {
   AudioFilled,
 } from "@ant-design/icons";
 import getDate from "@/utils/date";
+import serverURL from "@/service/url";
 import { io } from "socket.io-client";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
@@ -38,8 +39,9 @@ function Home() {
   const [recorder, setRecorder] = useState(null);
   // const [audioUrl, setAudioUrl] = useState("");
   const [isrecording, setIsRecording] = useState(false);
+  const startTime = useRef(new Date());
+  const endTime = useRef(new Date());
   const startRecording = async () => {
-    console.log("start record");
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const recordRTC = new RecordRTC(stream, {
       type: "audio",
@@ -48,17 +50,21 @@ function Home() {
       sampleRate: 8000,
     });
     recordRTC.startRecording();
+    console.log("start record");
+    startTime.current = new Date();
     setRecorder(recordRTC);
     setIsRecording(true);
   };
   const stopRecording = () => {
     recorder.stopRecording(() => {
-      console.log("stop record");
+      endTime.current = new Date();
+      const duration = Math.ceil(
+        (endTime.current.getTime() - startTime.current.getTime()) / 1000
+      );
       const audioBlob = recorder.getBlob();
-      // const audioUrl = URL.createObjectURL(audioBlob);
       // setAudioUrl(audioUrl);
       setIsRecording(false);
-      pushRecord(audioBlob);
+      pushRecord(audioBlob, duration);
     });
   };
   // 消息清空
@@ -88,11 +94,12 @@ function Home() {
     );
   };
   // 语音发送
-  const pushRecord = (rcd) => {
+  const pushRecord = (rcd, tim) => {
     const record: ChatData = {
       user: user,
       type: "record",
       record: rcd,
+      recordTime: tim,
       text: "record",
       date: getDate(),
     };
@@ -131,7 +138,7 @@ function Home() {
   };
   useEffect(() => {
     // 连接socket
-    socket = io("https://www.cymaple.cn", {
+    socket = io(serverURL, {
       query: {
         room: room,
         user: user,
@@ -160,35 +167,34 @@ function Home() {
   useEffect(() => {
     scrollToBottom();
   }, [chatData]);
-  const peerConnections = {};
   // 在线视频
-  useEffect(() => {
-    const localVideo = document.querySelector("#localVideo");
-    // const remoteVideo = document.querySelector("#remoteVideo");
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: true })
-      .then((stream) => {
-        localVideo.srcObject = stream;
-        // socket.emit("online-video", room, user);
-        // socket.on("online-video", (user) => {
-        //   const peerConnection = new RTCPeerConnection();
-        //   peerConnections[user] = peerConnection;
+  // useEffect(() => {
+  //   const localVideo = document.querySelector("#localVideo");
+  //   // const remoteVideo = document.querySelector("#remoteVideo");
+  //   navigator.mediaDevices
+  //     .getUserMedia({ video: true, audio: true })
+  //     .then((stream) => {
+  //       localVideo.srcObject = stream;
+  //       // socket.emit("online-video", room, user);
+  //       // socket.on("online-video", (user) => {
+  //       //   const peerConnection = new RTCPeerConnection();
+  //       //   peerConnections[user] = peerConnection;
 
-        //   stream
-        //     .getTracks()
-        //     .forEach((track) => peerConnection.addTrack(track, stream));
-        //   peerConnection
-        //     .createOffer()
-        //     .then((sdp) => peerConnection.setLocalDescription(sdp))
-        //     .then(() => {
-        //       socket.emit("offer", peerConnection.localDescription, user);
-        //     });
-        //   peerConnection.ontrack = (event) => {
-        //     remoteVideo.srcObject = event.stream[0];
-        //   };
-        // });
-      });
-  }, []);
+  //       //   stream
+  //       //     .getTracks()
+  //       //     .forEach((track) => peerConnection.addTrack(track, stream));
+  //       //   peerConnection
+  //       //     .createOffer()
+  //       //     .then((sdp) => peerConnection.setLocalDescription(sdp))
+  //       //     .then(() => {
+  //       //       socket.emit("offer", peerConnection.localDescription, user);
+  //       //     });
+  //       //   peerConnection.ontrack = (event) => {
+  //       //     remoteVideo.srcObject = event.stream[0];
+  //       //   };
+  //       // });
+  //     });
+  // }, []);
   return (
     <div className="home-page">
       <div className="chat-area">

@@ -6,6 +6,7 @@ interface ChatData {
   user: string;
   text?: string;
   record?: Blob;
+  recordTime?: number;
   date: string;
   type: string;
 }
@@ -38,6 +39,7 @@ function ChatContent({
                 type={item.type}
                 text={item.text}
                 record={item.record}
+                recordTime={item.recordTime}
                 isUser={item.user === user}
                 date={item.date}
               />
@@ -60,6 +62,7 @@ function ChatContent({
                 type={item.type}
                 text={item.text}
                 record={item.record}
+                recordTime={item.recordTime}
                 isUser={item.user === user}
                 date={item.date}
               />

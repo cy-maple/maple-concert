@@ -47,6 +47,9 @@ const messageSchema = mongoose.Schema({
   record: {
     type: Buffer,
   },
+  recordTime: {
+    type: Number,
+  },
   date: {
     type: String,
     required: [true, "date must!!!"],
