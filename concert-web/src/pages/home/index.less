@@ -1,4 +1,5 @@
 .home-page {
+  position: relative;
   display: flex;
   padding: 30px;
   background-color: #eee;
@@ -61,6 +62,10 @@
       margin-left: 10px;
       font-size: 20px;
     }
+    &-body {
+      height: calc(100% - 80px);
+      overflow: scroll;
+    }
     .setting-area-opts {
       &-row {
         display: flex;
@@ -76,4 +81,10 @@
   video {
     width: 100%;
   }
+}
+.user-list {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }

@@ -13,11 +13,15 @@ import { useLocation } from "react-router-dom";
 import ChatContent, { ChatData } from "@/components/chat-content";
 import SettingBox from "@/components/setting-box";
 import SettingButton from "@/components/setting-button";
+import MaskLayer from "@/components/mask-layer";
+import UserList from "@/components/user-list";
 import { Avatar, Button } from "antd";
 import ColorHash from "@/utils/color-hash";
 import RecordRTC from "recordrtc";
 let socket = null;
 function Home() {
+  // 房间用户列表
+  const [roomUserList, setRoomUserList] = useState([]);
   // message列表
   const [chatData, setChatData] = useState([]);
   // 获取user和room
@@ -148,9 +152,19 @@ function Home() {
       setChatData((msgArr) => [...msgArr, msg]);
     });
 
-    // 获取历史消息
-    socket.on("init", (msgArr) => {
+    // 获取消息列表
+    socket.on("initMessageList", (msgArr) => {
       setChatData(msgArr);
+    });
+
+    // 获取用户列表
+    socket.on("initUserList", (userArr) => {
+      setRoomUserList(userArr);
+    });
+
+    // 更新用户列表
+    socket.on("enterUser", (user) => {
+      setRoomUserList((userArr) => [...userArr, user]);
     });
 
     //绑定回车事件
@@ -168,121 +182,227 @@ function Home() {
     scrollToBottom();
   }, [chatData]);
   // 在线视频
-  // useEffect(() => {
-  //   const localVideo = document.querySelector("#localVideo");
-  //   // const remoteVideo = document.querySelector("#remoteVideo");
-  //   navigator.mediaDevices
-  //     .getUserMedia({ video: true, audio: true })
-  //     .then((stream) => {
-  //       localVideo.srcObject = stream;
-  //       // socket.emit("online-video", room, user);
-  //       // socket.on("online-video", (user) => {
-  //       //   const peerConnection = new RTCPeerConnection();
-  //       //   peerConnections[user] = peerConnection;
-
-  //       //   stream
-  //       //     .getTracks()
-  //       //     .forEach((track) => peerConnection.addTrack(track, stream));
-  //       //   peerConnection
-  //       //     .createOffer()
-  //       //     .then((sdp) => peerConnection.setLocalDescription(sdp))
-  //       //     .then(() => {
-  //       //       socket.emit("offer", peerConnection.localDescription, user);
-  //       //     });
-  //       //   peerConnection.ontrack = (event) => {
-  //       //     remoteVideo.srcObject = event.stream[0];
-  //       //   };
-  //       // });
-  //     });
-  // }, []);
+  let peerConnection = null;
+  let localstream = null;
+  // 加入在线视频
+  const joinVideoConnect = () => {
+    // 创建显示本地与远程视频的video
+    const localVideo = document.querySelector("#localVideo");
+    const remoteVideo = document.querySelector("#remoteVideo");
+    // 申请浏览器音频视频权限
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: true })
+      .then((stream) => {
+        localstream = stream;
+        // localVideo展示本地视频流
+        localVideo.srcObject = stream;
+        // 创建RTCPeerConnection
+        peerConnection = new RTCPeerConnection();
+        // 将本地媒体流的轨道添加进RTCPeerConnection
+        stream
+          .getTracks()
+          .forEach((track) => peerConnection.addTrack(track, stream));
+        // SDP协商完成，接受到远程轨道时的hook
+        peerConnection.ontrack = (event) => {
+          remoteVideo.srcObject = event.streams[0];
+        };
+        // 创建offer，发起连接
+        peerConnection
+          .createOffer()
+          .then((offer) => {
+            return peerConnection.setLocalDescription(offer);
+          })
+          .then(() => {
+            socket.emit("offer", peerConnection.localDescription);
+          });
+        // 收到offer，回复answer
+        socket.on("offer", (offer) => {
+          peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+          peerConnection
+            .createAnswer()
+            .then((answer) => {
+              return peerConnection.setLocalDescription(answer);
+            })
+            .then(() => {
+              socket.emit("answer", peerConnection.localDescription);
+            });
+        });
+        // 收到answer
+        socket.on("answer", (answer) => {
+          peerConnection.setRemoteDescription(
+            new RTCSessionDescription(answer)
+          );
+        });
+        // 发送ICE候选
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit("candidate", event.candidate);
+          }
+        };
+        // 接受ICE候选
+        socket.on("candidate", (candidate) => {
+          peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        });
+      })
+      .catch((error) => {
+        console.log("获取本地流失败", error);
+      });
+  };
+  // 退出在线视频
+  const leaveVideoConnect = () => {
+    localstream.getTracks().forEach((track) => {
+      track.stop();
+    });
+    localstream = null;
+    peerConnection.close();
+    peerConnection = null;
+  };
+  // 选择视频对象
+  const selectVideoUser = () => {
+    console.log(roomUserList);
+  };
+  // 在线用户列表操作
+  const [isShowUserList, setIsShowUserList] = useState(false);
+  const changeIsShowUserList = () => {
+    setIsShowUserList((state) => !state);
+  };
   return (
-    <div className="home-page">
-      <div className="chat-area">
-        <div className="chat-area-header">
-          <Avatar
-            style={{
-              backgroundColor: color,
-              verticalAlign: "middle",
-              marginLeft: "10px",
-              marginRight: "10px",
-            }}
-            size={60}
-          >
-            聊天室
-          </Avatar>
-          {room}
-        </div>
-        <div ref={messageView} className="chat-area-body">
-          <ChatContent chatData={chatData} user={user} />
-        </div>
-        <div className="chat-area-footer">
-          <div className="chat-input">
-            <div className="input-box">
-              <input ref={input} type="text" placeholder="Please enter..." />
+    <>
+      <div className="home-page">
+        <div className="chat-area">
+          <div className="chat-area-header">
+            <Avatar
+              style={{
+                backgroundColor: color,
+                verticalAlign: "middle",
+                marginLeft: "10px",
+                marginRight: "10px",
+              }}
+              size={60}
+            >
+              聊天室
+            </Avatar>
+            {room}
+          </div>
+          <div ref={messageView} className="chat-area-body">
+            <ChatContent chatData={chatData} user={user} />
+          </div>
+          <div className="chat-area-footer">
+            <div className="chat-input">
+              <div className="input-box">
+                <input ref={input} type="text" placeholder="Please enter..." />
+              </div>
+              <Button
+                onClick={deleteMessage}
+                shape="circle"
+                size="middle"
+                style={{ backgroundColor: "#ddd", marginLeft: "8px" }}
+                icon={<DeleteOutlined style={{ color: "#000" }} />}
+              ></Button>
+              <Button
+                onClick={pushiIterval}
+                shape="circle"
+                size="middle"
+                style={{ backgroundColor: "#ddd", marginLeft: "8px" }}
+                icon={<HistoryOutlined style={{ color: "#000" }} />}
+              ></Button>
+              <Button
+                onClick={isrecording ? stopRecording : startRecording}
+                shape="circle"
+                size="middle"
+                style={{ backgroundColor: "#ddd", marginLeft: "8px" }}
+                icon={<AudioFilled style={{ color: "#000" }} />}
+              ></Button>
+              <Button
+                onClick={pushMessage}
+                shape="circle"
+                size="middle"
+                style={{ backgroundColor: "#4bb150", marginLeft: "8px" }}
+                icon={<ThunderboltFilled style={{ color: "#fff" }} />}
+              ></Button>
             </div>
-            <Button
-              onClick={deleteMessage}
-              shape="circle"
-              size="middle"
-              style={{ backgroundColor: "#ddd", marginLeft: "8px" }}
-              icon={<DeleteOutlined style={{ color: "#000" }} />}
-            ></Button>
-            <Button
-              onClick={pushiIterval}
-              shape="circle"
-              size="middle"
-              style={{ backgroundColor: "#ddd", marginLeft: "8px" }}
-              icon={<HistoryOutlined style={{ color: "#000" }} />}
-            ></Button>
-            <Button
-              onClick={isrecording ? stopRecording : startRecording}
-              shape="circle"
-              size="middle"
-              style={{ backgroundColor: "#ddd", marginLeft: "8px" }}
-              icon={<AudioFilled style={{ color: "#000" }} />}
-            ></Button>
-            <Button
-              onClick={pushMessage}
-              shape="circle"
-              size="middle"
-              style={{ backgroundColor: "#4bb150", marginLeft: "8px" }}
-              icon={<ThunderboltFilled style={{ color: "#fff" }} />}
-            ></Button>
+          </div>
+        </div>
+        <div className="setting-area">
+          <div className="setting-area-title">房间操作</div>
+          <div className="setting-area-body">
+            <SettingBox color="#f0feed" title="">
+              <div className="setting-area-opts">
+                <div className="setting-area-opts-row">
+                  <div className="setting-area-opt">
+                    <SettingButton
+                      onClick={() => changeIsShowUserList()}
+                      text={`房间在线人数：${roomUserList.length}`}
+                    />
+                  </div>
+                </div>
+              </div>
+            </SettingBox>
+            <SettingBox color="#f0feed" title="房间消息发送">
+              <div className="setting-area-opts">
+                <div className="setting-area-opts-row">
+                  <div className="setting-area-opt">
+                    <SettingButton
+                      onClick={() => batchPushMessage(10)}
+                      text="批量10条"
+                    />
+                  </div>
+                  <div className="setting-area-opt">
+                    <SettingButton
+                      onClick={() => batchPushMessage(100)}
+                      text="批量100条"
+                    />
+                  </div>
+                  <div className="setting-area-opt">
+                    <SettingButton
+                      onClick={() => batchPushMessage(1000)}
+                      text="1000条"
+                    />
+                  </div>
+                </div>
+              </div>
+            </SettingBox>
+            <SettingBox color="#f0feed" title="在线视频操作">
+              <div className="setting-area-opts">
+                <div className="setting-area-opts-row">
+                  <div className="setting-area-opt">
+                    <SettingButton
+                      onClick={() => joinVideoConnect()}
+                      text="加入视频"
+                    />
+                  </div>
+                  <div className="setting-area-opt">
+                    <SettingButton
+                      onClick={() => leaveVideoConnect()}
+                      text="退出视频"
+                    />
+                  </div>
+
+                  <div className="setting-area-opt">
+                    <SettingButton
+                      onClick={() => selectVideoUser()}
+                      text="当前在线"
+                    />
+                  </div>
+                </div>
+              </div>
+            </SettingBox>
+            <SettingBox color="#f0feed" title="房间消息发送">
+              <video autoPlay muted id="localVideo"></video>
+              <video autoPlay muted id="remoteVideo"></video>
+            </SettingBox>
           </div>
         </div>
       </div>
-      <div className="setting-area">
-        <div className="setting-area-title">测试操作</div>
-        <SettingBox color="#f0feed" title="房间消息发送">
-          <div className="setting-area-opts">
-            <div className="setting-area-opts-row">
-              <div className="setting-area-opt">
-                <SettingButton
-                  onClick={() => batchPushMessage(10)}
-                  text="批量10条"
-                />
-              </div>
-              <div className="setting-area-opt">
-                <SettingButton
-                  onClick={() => batchPushMessage(100)}
-                  text="批量100条"
-                />
-              </div>
-              <div className="setting-area-opt">
-                <SettingButton
-                  onClick={() => batchPushMessage(1000)}
-                  text="1000条"
-                />
-              </div>
-            </div>
-          </div>
-        </SettingBox>
-        <SettingBox color="#f0feed" title="房间消息发送">
-          <video autoPlay muted id="localVideo"></video>
-          <video autoPlay muted id="remoteVideo"></video>
-        </SettingBox>
-      </div>
-    </div>
+      {isShowUserList && (
+        <MaskLayer>
+          <UserList
+            userList={roomUserList}
+            closeUserList={changeIsShowUserList}
+          ></UserList>
+        </MaskLayer>
+      )}
+    </>
   );
 }
 

@@ -56,15 +56,22 @@ const messageSchema = mongoose.Schema({
   },
 });
 
+const roomUserList = {};
 // server
 io.on("connection", (socket) => {
   const user = socket.handshake.query.user;
   const room = socket.handshake.query.room;
+  roomUserList[room] = roomUserList[room] || [];
   console.log(`${user} enter ${room}`);
   socket.on("disconnect", () => {
     console.log(`${user} leave ${room}`);
+    roomUserList[room].splice(roomUserList[room].indexOf(user), 1);
+    socket.broadcast.to(room).emit("initUserList", roomUserList[room]);
   });
   socket.join(room);
+  roomUserList[room].push(user);
+  socket.emit("initUserList", roomUserList[room]);
+  socket.broadcast.to(room).emit("enterUser", user);
   // 添加消息
   const setMessage = (message) => {
     const newMessage = new roomMessage(message);
@@ -82,7 +89,7 @@ io.on("connection", (socket) => {
   let initMessage = [];
   roomMessage.find().then((msgs) => {
     initMessage = msgs;
-    socket.emit("init", initMessage);
+    socket.emit("initMessageList", initMessage);
   });
   socket.on("chat", (room, message, isStorage = true) => {
     if (isStorage) {
@@ -90,9 +97,18 @@ io.on("connection", (socket) => {
     }
     io.to(room).emit("chat", message);
   });
-  // socket.on("online-video", (room, user) => {
-  //   socket.broadcast.to(room).emit("online-video", user);
-  // });
+  socket.on("offer", (offer) => {
+    console.log("收到offer", user);
+    socket.broadcast.to(room).emit("offer", offer);
+  });
+  socket.on("answer", (answer) => {
+    console.log("收到answer", user);
+    socket.broadcast.to(room).emit("answer", answer);
+  });
+  socket.on("candidate", (candidate) => {
+    console.log("收到candidate", user);
+    socket.broadcast.to(room).emit("candidate", candidate);
+  });
 });
 
 server.listen(3000, () => {
