@@ -197,7 +197,16 @@ function Home() {
         // localVideo展示本地视频流
         localVideo.srcObject = stream;
         // 创建RTCPeerConnection
-        peerConnection = new RTCPeerConnection();
+        peerConnection = new RTCPeerConnection({
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" }, // 谷歌的公共服务
+            {
+              urls: "turn:121.56.215.24:3478",
+              credential: "maple",
+              username: "cyf",
+            },
+          ],
+        });
         // 将本地媒体流的轨道添加进RTCPeerConnection
         stream
           .getTracks()
