@@ -29,22 +29,30 @@ function ChatBubble({
     audio.current.play();
   }, [audioUrl]);
   const playRecord = () => {
-    if (isPlayRef.current) {
-      setIsPlay(false);
-      isPlayRef.current = false;
-      return;
-    }
     // 将object转化为arrayBuffer
-    let arybuf = record;
-    if (!(record instanceof ArrayBuffer)) {
-      console.log(arybuf);
-      arybuf = new Uint8Array(record.data).buffer;
+    if (isPlayOver.current) {
+      let arybuf = record;
+      if (!(record instanceof ArrayBuffer)) {
+        console.log(arybuf);
+        arybuf = new Uint8Array(record.data).buffer;
+      }
+      const blob = new Blob([arybuf], { type: "audio/webm;codecs=opus" });
+      setAudioUrl(URL.createObjectURL(blob));
+      setIsPlay(true);
+      isPlayRef.current = true;
+      requestAnimationFrame(animate);
+    } else {
+      if (isPlayRef.current) {
+        setIsPlay(false);
+        isPlayRef.current = false;
+        audio.current.pause();
+      } else {
+        setIsPlay(true);
+        isPlayRef.current = true;
+        audio.current.play();
+        requestAnimationFrame(animate);
+      }
     }
-    const blob = new Blob([arybuf], { type: "audio/webm;codecs=opus" });
-    setAudioUrl(URL.createObjectURL(blob));
-    setIsPlay(true);
-    isPlayRef.current = true;
-    requestAnimationFrame(animate);
   };
   // 播放动画
   const [seconds, setSeconds] = useState(recordTime);
