@@ -184,11 +184,45 @@ function Home() {
   // 在线视频
   let peerConnection = null;
   let localstream = null;
+  const peerConnections = {};
+  // stun turn配置
+  const ICEconfig = [
+    { urls: "stun:stun.l.google.com:19302" }, // 谷歌的公共服务
+    {
+      urls: "turn:121.56.215.24:3478",
+      credential: "maple",
+      username: "cyf",
+    },
+  ];
+  // 建立视频连接
+  const initPeerConnection = () => {
+    // for (const roomUser of roomUserList) {
+    //   if (roomUser !== user) {
+    //     peerConnections[roomUser] = new RTCPeerConnection({
+    //       iceServers: ICEconfig,
+    //     });
+    //   }
+    // }
+    peerConnections["cyf"] = new RTCPeerConnection({
+      iceServers: ICEconfig,
+    });
+    peerConnections["cry"] = new RTCPeerConnection({
+      iceServers: ICEconfig,
+    });
+    peerConnections["dp"] = new RTCPeerConnection({
+      iceServers: ICEconfig,
+    });
+  };
   // 加入在线视频
   const joinVideoConnect = () => {
     // 创建显示本地与远程视频的video
     const localVideo = document.querySelector("#localVideo");
-    const remoteVideo = document.querySelector("#remoteVideo");
+    const remoteVideo = {};
+    remoteVideo["cyf"] = document.querySelector("#remoteVideo1");
+    remoteVideo["cry"] = document.querySelector("#remoteVideo2");
+    remoteVideo["dp"] = document.querySelector("#remoteVideo3");
+    // 初始化peerConnection
+    initPeerConnection();
     // 申请浏览器音频视频权限
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
@@ -196,61 +230,72 @@ function Home() {
         localstream = stream;
         // localVideo展示本地视频流
         localVideo.srcObject = stream;
-        // 创建RTCPeerConnection
-        peerConnection = new RTCPeerConnection({
-          iceServers: [
-            { urls: "stun:stun.l.google.com:19302" }, // 谷歌的公共服务
-            {
-              urls: "turn:121.56.215.24:3478",
-              credential: "maple",
-              username: "cyf",
-            },
-          ],
-        });
         // 将本地媒体流的轨道添加进RTCPeerConnection
-        stream
-          .getTracks()
-          .forEach((track) => peerConnection.addTrack(track, stream));
+        stream.getTracks().forEach((track) => {
+          for (const peerConnection in peerConnections) {
+            peerConnections[peerConnection].addTrack(track, stream);
+          }
+        });
         // SDP协商完成，接受到远程轨道时的hook
-        peerConnection.ontrack = (event) => {
-          remoteVideo.srcObject = event.streams[0];
-        };
+        for (const peerConnection in peerConnections) {
+          peerConnections[peerConnection].ontrack = (event) => {
+            console.log("ghhhh");
+            remoteVideo[peerConnection].srcObject = event.streams[0];
+          };
+        }
         // 创建offer，发起连接
-        peerConnection
-          .createOffer()
-          .then((offer) => {
-            return peerConnection.setLocalDescription(offer);
-          })
-          .then(() => {
-            socket.emit("offer", peerConnection.localDescription);
-          });
-        // 收到offer，回复answer
-        socket.on("offer", (offer) => {
-          peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-          peerConnection
-            .createAnswer()
-            .then((answer) => {
-              return peerConnection.setLocalDescription(answer);
+        for (const peerConnection in peerConnections) {
+          peerConnections[peerConnection]
+            .createOffer()
+            .then((offer) => {
+              console.log("this is offer", offer);
+              console.log(peerConnections[peerConnection].signalingState);
+              return peerConnections[peerConnection].setLocalDescription(offer);
             })
             .then(() => {
-              socket.emit("answer", peerConnection.localDescription);
+              socket.emit(
+                "offer",
+                user,
+                peerConnections[peerConnection].localDescription
+              );
+            });
+        }
+        // 收到offer，回复answer
+        socket.on("offer", (otherUser, offer) => {
+          peerConnections[otherUser].setRemoteDescription(
+            new RTCSessionDescription(offer)
+          );
+          peerConnections[otherUser]
+            .createAnswer()
+            .then((answer) => {
+              console.log(peerConnections[otherUser].signalingState);
+              return peerConnections[otherUser].setLocalDescription(answer);
+            })
+            .then(() => {
+              socket.emit(
+                "answer",
+                user,
+                peerConnections[otherUser].localDescription
+              );
             });
         });
         // 收到answer
-        socket.on("answer", (answer) => {
-          peerConnection.setRemoteDescription(
+        socket.on("answer", (user, answer) => {
+          peerConnections[user].setRemoteDescription(
             new RTCSessionDescription(answer)
           );
         });
         // 发送ICE候选
-        peerConnection.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit("candidate", event.candidate);
-          }
-        };
+        for (const peerConnection in peerConnections) {
+          peerConnections[peerConnection].onicecandidate = (event) => {
+            if (event.candidate) {
+              socket.emit("candidate", user, event.candidate);
+            }
+          };
+        }
         // 接受ICE候选
-        socket.on("candidate", (candidate) => {
-          peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        socket.on("candidate", (user, candidate) => {
+          peerConnections[user].addIceCandidate(new RTCIceCandidate(candidate));
         });
       })
       .catch((error) => {
@@ -398,7 +443,9 @@ function Home() {
             </SettingBox>
             <SettingBox color="#f0feed" title="房间消息发送">
               <video autoPlay muted id="localVideo"></video>
-              <video autoPlay muted id="remoteVideo"></video>
+              <video autoPlay muted id="remoteVideo1"></video>
+              <video autoPlay muted id="remoteVideo2"></video>
+              <video autoPlay muted id="remoteVideo3"></video>
             </SettingBox>
           </div>
         </div>

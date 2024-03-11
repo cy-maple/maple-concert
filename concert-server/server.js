@@ -97,17 +97,17 @@ io.on("connection", (socket) => {
     }
     io.to(room).emit("chat", message);
   });
-  socket.on("offer", (offer) => {
-    console.log("收到offer", user);
-    socket.broadcast.to(room).emit("offer", offer);
+  socket.on("offer", (user, offer) => {
+    console.log(`${user}发出offer`);
+    socket.broadcast.to(room).emit("offer", user, offer);
   });
-  socket.on("answer", (answer) => {
-    console.log("收到answer", user);
-    socket.broadcast.to(room).emit("answer", answer);
+  socket.on("answer", (user, answer) => {
+    console.log(`${user}回复answer`);
+    socket.broadcast.to(room).emit("answer", user, answer);
   });
-  socket.on("candidate", (candidate) => {
-    console.log("收到candidate", user);
-    socket.broadcast.to(room).emit("candidate", candidate);
+  socket.on("candidate", (user, candidate) => {
+    console.log(`${user}已就绪candidate`);
+    socket.broadcast.to(room).emit("candidate", user, candidate);
   });
 });
 
