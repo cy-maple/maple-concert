@@ -57,20 +57,27 @@ const messageSchema = mongoose.Schema({
 });
 
 const roomUserList = {};
+const roomVideoUserList = {};
 // server
 io.on("connection", (socket) => {
   const user = socket.handshake.query.user;
   const room = socket.handshake.query.room;
   roomUserList[room] = roomUserList[room] || [];
+  roomVideoUserList[room] = roomVideoUserList[room] || [];
   console.log(`${user} enter ${room}`);
   socket.on("disconnect", () => {
     console.log(`${user} leave ${room}`);
     roomUserList[room].splice(roomUserList[room].indexOf(user), 1);
     socket.broadcast.to(room).emit("initUserList", roomUserList[room]);
+    roomVideoUserList[room].splice(roomUserList[room].indexOf(user), 1);
+    socket.broadcast
+      .to(room)
+      .emit("initVideoUserList", roomVideoUserList[room]);
   });
   socket.join(room);
   roomUserList[room].push(user);
   socket.emit("initUserList", roomUserList[room]);
+  socket.emit("initVideoUserList", roomVideoUserList[room]);
   socket.broadcast.to(room).emit("enterUser", user);
   // 添加消息
   const setMessage = (message) => {
@@ -97,17 +104,22 @@ io.on("connection", (socket) => {
     }
     io.to(room).emit("chat", message);
   });
-  socket.on("offer", (user, offer) => {
+  socket.on("joinVideo", (user) => {
+    socket.broadcast.to(room).emit("joinVideo", user);
+    roomVideoUserList[room].push(user);
+    io.to(room).emit("initVideoUserList", roomVideoUserList[room]);
+  });
+  socket.on("offer", (sendUser, receUser, offer) => {
     console.log(`${user}发出offer`);
-    socket.broadcast.to(room).emit("offer", user, offer);
+    socket.broadcast.to(room).emit("offer", sendUser, receUser, offer);
   });
-  socket.on("answer", (user, answer) => {
+  socket.on("answer", (sendUser, receUser, answer) => {
     console.log(`${user}回复answer`);
-    socket.broadcast.to(room).emit("answer", user, answer);
+    socket.broadcast.to(room).emit("answer", sendUser, receUser, answer);
   });
-  socket.on("candidate", (user, candidate) => {
+  socket.on("candidate", (sendUser, receUser, candidate) => {
     console.log(`${user}已就绪candidate`);
-    socket.broadcast.to(room).emit("candidate", user, candidate);
+    socket.broadcast.to(room).emit("candidate", sendUser, receUser, candidate);
   });
 });
 

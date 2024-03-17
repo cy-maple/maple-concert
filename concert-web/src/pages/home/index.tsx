@@ -22,6 +22,10 @@ let socket = null;
 function Home() {
   // 房间用户列表
   const [roomUserList, setRoomUserList] = useState([]);
+  // 房间在线视频用户列表
+  const [roomVideoUserList, setRoomVideoUserList] = useState([]);
+  // 是否加入视频
+  const isJoinVideo = useRef(false);
   // message列表
   const [chatData, setChatData] = useState([]);
   // 获取user和room
@@ -167,6 +171,21 @@ function Home() {
       setRoomUserList((userArr) => [...userArr, user]);
     });
 
+    // 获取在线视频用户列表
+    socket.on("initVideoUserList", (userArr) => {
+      setRoomVideoUserList(userArr);
+    });
+
+    // 更新peerConnection
+    socket.on("joinVideo", (user) => {
+      if (isJoinVideo.current) {
+        createPeerConnection(user);
+        setTimeout(() => {
+          createOffer(user);
+        }, 3000);
+      }
+    });
+
     //绑定回车事件
     const enterDown = (e) => {
       if (e.key === "Enter" || e.keycode === 13) {
@@ -182,9 +201,28 @@ function Home() {
     scrollToBottom();
   }, [chatData]);
   // 在线视频
-  let peerConnection = null;
-  let localstream = null;
-  const peerConnections = {};
+  const localstream = useRef(null);
+  const [peerConnections, setPeerConnections] = useState({});
+  // 创建显示本地与远程视频的video
+  const localVideo = document.querySelector("#localVideo");
+  const [remoteVideo, setRemoteVideo] = useState({});
+  useEffect(() => {
+    setRemoteVideo((remoteVideo) => {
+      remoteVideo["cyf"] = document.querySelector("#remoteVideo1");
+      remoteVideo["cry"] = document.querySelector("#remoteVideo2");
+      remoteVideo["dp"] = document.querySelector("#remoteVideo3");
+      return remoteVideo;
+    });
+  }, []);
+
+  // const remoteVideo = useRef(null);
+  // if (!remoteVideo.current) {
+  //   remoteVideo.current = {};
+  //   remoteVideo.current["cyf"] = document.querySelector("#remoteVideo1");
+  //   remoteVideo.current["cry"] = document.querySelector("#remoteVideo2");
+  //   remoteVideo.current["dp"] = document.querySelector("#remoteVideo3");
+  //   console.log(remoteVideo.current, "hhhhh");
+  // }
   // stun turn配置
   const ICEconfig = [
     { urls: "stun:stun.l.google.com:19302" }, // 谷歌的公共服务
@@ -194,42 +232,73 @@ function Home() {
       username: "cyf",
     },
   ];
+  // 建立peerConnection
+  const createPeerConnection = (remoteUser) => {
+    console.log("create a peer");
+    setPeerConnections((peerConnections) => {
+      console.log("hhhhh", peerConnections);
+      peerConnections[remoteUser] = new RTCPeerConnection({
+        iceServers: ICEconfig,
+      });
+      // 将本地媒体流的轨道添加进RTCPeerConnection
+      localstream.current.getTracks().forEach((track) => {
+        peerConnections[remoteUser].addTrack(track, localstream.current);
+      });
+      // SDP协商完成，接受到远程轨道时的hook
+      peerConnections[remoteUser].ontrack = (event) => {
+        remoteVideo[remoteUser].srcObject = event.streams[0];
+      };
+      return peerConnections;
+    });
+  };
+  // 发起连接请求
+  const createOffer = (remoteUser) => {
+    // 创建offer，发起连接
+    peerConnections[remoteUser]
+      .createOffer()
+      .then((offer) => {
+        console.log("完成offer创建", offer);
+        console.log(peerConnections[remoteUser].signalingState);
+        return peerConnections[remoteUser].setLocalDescription(offer);
+      })
+      .then(() => {
+        socket.emit(
+          "offer",
+          user,
+          remoteUser,
+          peerConnections[remoteUser].localDescription
+        );
+      });
+    // 发送ICE候选
+    peerConnections[remoteUser].onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("candidate", user, remoteUser, event.candidate);
+      }
+      return peerConnections;
+    };
+  };
   // 建立视频连接
   const initPeerConnection = () => {
-    // for (const roomUser of roomUserList) {
-    //   if (roomUser !== user) {
-    //     peerConnections[roomUser] = new RTCPeerConnection({
-    //       iceServers: ICEconfig,
-    //     });
-    //   }
-    // }
-    peerConnections["cyf"] = new RTCPeerConnection({
-      iceServers: ICEconfig,
-    });
-    peerConnections["cry"] = new RTCPeerConnection({
-      iceServers: ICEconfig,
-    });
-    peerConnections["dp"] = new RTCPeerConnection({
-      iceServers: ICEconfig,
-    });
+    console.log("init aaaaa!");
+    for (const roomUser of roomVideoUserList) {
+      if (roomUser !== user) {
+        createPeerConnection(roomUser);
+      }
+    }
   };
   // 加入在线视频
   const joinVideoConnect = () => {
-    // 创建显示本地与远程视频的video
-    const localVideo = document.querySelector("#localVideo");
-    const remoteVideo = {};
-    remoteVideo["cyf"] = document.querySelector("#remoteVideo1");
-    remoteVideo["cry"] = document.querySelector("#remoteVideo2");
-    remoteVideo["dp"] = document.querySelector("#remoteVideo3");
-    // 初始化peerConnection
-    initPeerConnection();
     // 申请浏览器音频视频权限
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
       .then((stream) => {
-        localstream = stream;
+        localstream.current = stream;
         // localVideo展示本地视频流
         localVideo.srcObject = stream;
+        isJoinVideo.current = true;
+        socket.emit("joinVideo", user);
+        // 初始化peerConnection
+        initPeerConnection();
         // 将本地媒体流的轨道添加进RTCPeerConnection
         stream.getTracks().forEach((track) => {
           for (const peerConnection in peerConnections) {
@@ -239,49 +308,39 @@ function Home() {
         // SDP协商完成，接受到远程轨道时的hook
         for (const peerConnection in peerConnections) {
           peerConnections[peerConnection].ontrack = (event) => {
-            console.log("ghhhh");
             remoteVideo[peerConnection].srcObject = event.streams[0];
           };
         }
-        // 创建offer，发起连接
-        for (const peerConnection in peerConnections) {
-          peerConnections[peerConnection]
-            .createOffer()
-            .then((offer) => {
-              console.log("this is offer", offer);
-              console.log(peerConnections[peerConnection].signalingState);
-              return peerConnections[peerConnection].setLocalDescription(offer);
-            })
-            .then(() => {
-              socket.emit(
-                "offer",
-                user,
-                peerConnections[peerConnection].localDescription
-              );
-            });
-        }
         // 收到offer，回复answer
-        socket.on("offer", (otherUser, offer) => {
-          peerConnections[otherUser].setRemoteDescription(
+        socket.on("offer", (sendUser, receUser, offer) => {
+          if (receUser !== user) {
+            return;
+          }
+          console.log("收到offer", offer);
+          peerConnections[sendUser].setRemoteDescription(
             new RTCSessionDescription(offer)
           );
-          peerConnections[otherUser]
+          peerConnections[sendUser]
             .createAnswer()
             .then((answer) => {
-              console.log(peerConnections[otherUser].signalingState);
-              return peerConnections[otherUser].setLocalDescription(answer);
+              return peerConnections[sendUser].setLocalDescription(answer);
             })
             .then(() => {
               socket.emit(
                 "answer",
                 user,
-                peerConnections[otherUser].localDescription
+                sendUser,
+                peerConnections[sendUser].localDescription
               );
             });
         });
         // 收到answer
-        socket.on("answer", (user, answer) => {
-          peerConnections[user].setRemoteDescription(
+        socket.on("answer", (sendUser, receUser, answer) => {
+          if (receUser !== user) {
+            return;
+          }
+          console.log("收到answer", answer);
+          peerConnections[sendUser].setRemoteDescription(
             new RTCSessionDescription(answer)
           );
         });
@@ -289,13 +348,18 @@ function Home() {
         for (const peerConnection in peerConnections) {
           peerConnections[peerConnection].onicecandidate = (event) => {
             if (event.candidate) {
-              socket.emit("candidate", user, event.candidate);
+              socket.emit("candidate", user, peerConnection, event.candidate);
             }
           };
         }
         // 接受ICE候选
-        socket.on("candidate", (user, candidate) => {
-          peerConnections[user].addIceCandidate(new RTCIceCandidate(candidate));
+        socket.on("candidate", (sendUser, receUser, candidate) => {
+          if (receUser !== user) {
+            return;
+          }
+          peerConnections[sendUser].addIceCandidate(
+            new RTCIceCandidate(candidate)
+          );
         });
       })
       .catch((error) => {
@@ -303,17 +367,17 @@ function Home() {
       });
   };
   // 退出在线视频
-  const leaveVideoConnect = () => {
-    localstream.getTracks().forEach((track) => {
-      track.stop();
-    });
-    localstream = null;
-    peerConnection.close();
-    peerConnection = null;
-  };
+  // const leaveVideoConnect = () => {
+  //   localstream.getTracks().forEach((track) => {
+  //     track.stop();
+  //   });
+  //   localstream = null;
+  //   peerConnection.close();
+  //   peerConnection = null;
+  // };
   // 选择视频对象
   const selectVideoUser = () => {
-    console.log(roomUserList);
+    console.log(roomVideoUserList);
   };
   // 在线用户列表操作
   const [isShowUserList, setIsShowUserList] = useState(false);
