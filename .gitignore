@@ -1,3 +1,5 @@
 concert-web/node_modules
 concert-server/node_modules
 .DS_Store
+video-sdk/video-client/node_modules
+video-sdk/video-server/node_modules
