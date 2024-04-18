@@ -6,7 +6,7 @@ import {
   AudioFilled,
 } from "@ant-design/icons";
 import getDate from "@/utils/date";
-import serverURL from "@/service/url";
+import { serverURLS, serverURL } from "@/service/url";
 import { io } from "socket.io-client";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
@@ -143,7 +143,7 @@ function Home() {
   };
   useEffect(() => {
     // 连接socket
-    socket = io(serverURL, {
+    socket = io(serverURLS, {
       query: {
         room: room,
         user: user,
@@ -208,7 +208,7 @@ function Home() {
     if (remoteVideo && localVideo) {
       setMyVideo(
         new videoClient({
-          url: "http://localhost:4000",
+          url: `${serverURL}:4000`,
           user: user,
           room: "maple",
           localVideo: localVideo,
