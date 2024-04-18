@@ -143,7 +143,7 @@ function Home() {
   };
   useEffect(() => {
     // 连接socket
-    socket = io(serverURLS, {
+    socket = io(`${serverURL}: 4000`, {
       query: {
         room: room,
         user: user,
@@ -208,7 +208,7 @@ function Home() {
     if (remoteVideo && localVideo) {
       setMyVideo(
         new videoClient({
-          url: `${serverURL}:4000`,
+          url: `${serverURLS}`,
           user: user,
           room: "maple",
           localVideo: localVideo,
